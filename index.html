@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Refleksomierz</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-color: #f5f5f5;
+            margin: 0;
+        }
+
+        #container {
+            text-align: center;
+            padding: 20px;
+            background-color: #fff;
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            max-width: 400px;
+            width: 100%;
+        }
+
+        #area {
+            width: 200px;
+            height: 200px;
+            background-color: grey;
+            cursor: pointer;
+            margin: 20px auto;
+            border-radius: 10px;
+            transition: background-color 0.3s ease;
+        }
+
+        #startBtn, #stopBtn {
+            padding: 10px 20px;
+            font-size: 16px;
+            border: none;
+            border-radius: 5px;
+            background-color: #4CAF50;
+            color: #fff;
+            cursor: pointer;
+            margin: 10px 5px;
+            transition: background-color 0.3s ease;
+        }
+
+        #startBtn:hover, #stopBtn:hover {
+            background-color: #45a049;
+        }
+
+        #stats {
+            text-align: left;
+            padding: 20px;
+            background-color: #f9f9f9;
+            border-radius: 10px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            display: none;
+        }
+
+        h1 {
+            margin-top: 0;
+            font-size: 28px;
+            color: #333;
+        }
+
+        h3 {
+            margin-top: 0;
+            font-size: 20px;
+        }
+
+        p {
+            margin: 10px 0;
+            font-size: 16px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-size: 16px;
+        }
+
+        .form-group {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .form-group label {
+            flex: 1;
+            text-align: left;
+        }
+
+        .form-group select {
+            flex: 1;
+            margin-left: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div id="container">
+        <h1>Refleksomierz</h1>
+        <div id="area"></div>
+        <div class="form-group">
+            <label for="numAttempts">Liczba prób:</label>
+            <input type="number" id="numAttempts" min="1" value="5">
+        </div>
+        <div class="form-group">
+            <label for="gameMode">Tryb gry:</label>
+            <select id="gameMode">
+                <option value="click">Klikanie</option>
+                <option value="keyboard">Klawiatura</option>
+            </select>
+        </div>
+        <div>
+            <button id="startBtn">Start</button>
+            <button id="stopBtn" style="display: none;">Stop</button>
+        </div>
+        <div id="stats">
+            <h3>Statystyki:</h3>
+            <p>Najkrótszy czas reakcji: <span id="minTime"></span> ms</p>
+            <p>Najdłuższy czas reakcji: <span id="maxTime"></span> ms</p>
+            <p>Średni czas reakcji: <span id="avgTime"></span> ms</p>
+            <p>Najlepszy wynik: <span id="bestScore"></span> ms</p>
+            <p>Zliczanie kliknięć przed zmianą koloru: <span id="clickCount"></span></p>
+        </div>
+    </div>
+
+    <script>
+        let gameInterval;
+        let reactionTimes = [];
+        let numAttempts = 5;
+        let currentAttempt = 0;
+        let bestScore = Infinity;
+        let clickCount = 0;
+        let gameMode = 'click'; // Default game mode is clicking
+
+        const area = document.getElementById('area');
+        const startBtn = document.getElementById('startBtn');
+        const stopBtn = document.getElementById('stopBtn');
+        const statsPanel = document.getElementById('stats');
+        const minTimeDisplay = document.getElementById('minTime');
+        const maxTimeDisplay = document.getElementById('maxTime');
+        const avgTimeDisplay = document.getElementById('avgTime');
+        const bestScoreDisplay = document.getElementById('bestScore');
+        const clickCountDisplay = document.getElementById('clickCount');
+        const numAttemptsInput = document.getElementById('numAttempts');
+        const gameModeSelect = document.getElementById('gameMode');
+
+        startBtn.addEventListener('click', startGame);
+        stopBtn.addEventListener('click', stopGame);
+
+        function startGame() {
+            numAttempts = parseInt(numAttemptsInput.value);
+            gameMode = gameModeSelect.value;
+            startBtn.style.display = 'none';
+            stopBtn.style.display = 'inline';
+            statsPanel.style.display = 'none';
+            reactionTimes = [];
+            currentAttempt = 0;
+            clickCount = 0;
+            bestScoreDisplay.textContent = bestScore === Infinity ? 'N/A' : bestScore + ' ms';
+            clickCountDisplay.textContent = clickCount;
+
+            area.style.backgroundColor = 'grey';
+            if (gameMode === 'click') {
+                area.addEventListener('click', handleAreaClick);
+            } else if (gameMode === 'keyboard') {
+                document.addEventListener('keydown', handleKeyPress);
+            }
+
+            gameInterval = setInterval(() => {
+                changeAreaColor();
+                clickCountDisplay.textContent = clickCount;
+                clickCount = 0; // Reset click count after color change
+            }, 2000);
+
+            displayNextColor();
+        }
+
+        function stopGame() {
+            clearInterval(gameInterval);
+            if (gameMode === 'click') {
+                area.removeEventListener('click', handleAreaClick);
+            } else if (gameMode === 'keyboard') {
+                document.removeEventListener('keydown', handleKeyPress);
+            }
+            startBtn.style.display = 'inline';
+            stopBtn.style.display = 'none';
+            statsPanel.style.display = 'block';
+
+            if (reactionTimes.length > 0) {
+                const minTime = Math.min(...reactionTimes);
+                const maxTime = Math.max(...reactionTimes);
+                const avgTime = reactionTimes.reduce((a, b) => a + b, 0) / reactionTimes.length;
+
+                minTimeDisplay.textContent = minTime + ' ms';
+                maxTimeDisplay.textContent = maxTime + ' ms';
+                avgTimeDisplay.textContent = avgTime.toFixed(2) + ' ms';
+
+                if (minTime < bestScore) {
+                    bestScore = minTime;
+                    bestScoreDisplay.textContent = bestScore + ' ms';
+                }
+            }
+        }
+
+        function handleAreaClick() {
+            clickCount++;
+            const endTime = new Date().getTime();
+            const reactionTime = endTime - lastColorChangeTime;
+            reactionTimes.push(reactionTime);
+            currentAttempt++;
+            displayNextColor();
+        }
+
+        function handleKeyPress(event) {
+            if (event.keyCode === 32) { // Check if spacebar (keyCode 32) is pressed
+                clickCount++;
+                const endTime = new Date().getTime();
+                const reactionTime = endTime - lastColorChangeTime;
+                reactionTimes.push(reactionTime);
+                currentAttempt++;
+                displayNextColor();
+            }
+        }
+
+        let lastColorChangeTime;
+        function changeAreaColor() {
+            area.style.backgroundColor = getRandomColor();
+            lastColorChangeTime = new Date().getTime();
+        }
+
+        function displayNextColor() {
+            if (currentAttempt >= numAttempts) {
+                stopGame();
+                return;
+            }
+            setTimeout(() => {
+                area.style.backgroundColor = getRandomColor();
+                lastColorChangeTime = new Date().getTime();
+            }, Math.random() * 3000 + 1000); // Random delay between 1 to 4 seconds
+        }
+
+        function getRandomColor() {
+            const letters = '0123456789ABCDEF';
+            let color = '#';
+            for (let i = 0; i < 6; i++) {
+                color += letters[Math.floor(Math.random() * 16)];
+            }
+            return color;
+        }
+    </script>
+</body>
+</html>
